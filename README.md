@@ -22,7 +22,7 @@ The course is organised in three three-hours sessions. Each session articulates 
    _Lecture_: Text data, Embeddings networks, Recurrent networks, Transformers  
    _Application_: Sentiment analysis
 
-## Computer resources
+## Resources
 
 Running the practical applications requires a computer with administrator rights and a working internet connection. For practical exercises, we use the [Jupyter notebooks](https://jupyter.org/) format. To execute notebooks, you can use the [Google Colab](https://colab.research.google.com/) (or equivalent) remote environment. Alternatively, you can install the [Anaconda](https://www.anaconda.com/) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) distribution of Python 3.12 or above, with a development environment that supports notebooks such as [Visual Studio Code](https://code.visualstudio.com/).
 
