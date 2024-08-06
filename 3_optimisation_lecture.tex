@@ -1,0 +1,569 @@
+% !/usr/bin/xelatex
+% Description: Machine leanring lecture on network optimisation
+% Author: Clement Gorin
+% Contact: clement.gorin@univ-paris1.fr
+
+\documentclass[c]{beamer}
+
+\usepackage{../utilities/beamer_style}
+
+\title{3. Better optimisation}
+
+\begin{document}
+
+\maketitle
+
+% Notes
+% Activation: https://www.youtube.com/watch?v=HxKaLyyGq50&list=PLyqSpQzTE6M9gCgajvQbc68Hk_JKGBAYT&index=72
+% - L2 regularisation: https://www.youtube.com/watch?v=lg4OLAjxRcQ
+% - Adding noise: https://www.youtube.com/watch?v=agGUR06jM_g&list=PLyqSpQzTE6M9gCgajvQbc68Hk_JKGBAYT&index=65
+% - Adding noise: https://www.youtube.com/watch?v=TtU9GhLeOk4&list=PLyqSpQzTE6M9gCgajvQbc68Hk_JKGBAYT&index=67
+% Dropout: https://www.youtube.com/watch?v=qfsacbIe9AI&list=PLyqSpQzTE6M9gCgajvQbc68Hk_JKGBAYT&index=69
+% Optimisers: % https://blog.paperspace.com/intro-to-optimization-momentum-rmsprop-adam/
+
+\section{Introduction}
+
+\begin{frame}{\secname}
+	Networks can approximate almost any functions, but they have many parameter and require careful optimisation
+	\begin{itemize}
+		\item This lecture covers a variety of tips and tricks to successfully optimise large network models
+		\item Optimisation algorithms, activation functions, parameter initialisation and regularisation techniques
+		\item Develop an intuitive sense of how these elements impact optimisation and interact with each other
+	\end{itemize}
+	% Very prolific research area \parencite{Bengio2012}
+\end{frame}
+
+\section{Better learning}
+
+\begin{frame}{\secname}
+	Recall the gradient descent update rule for a model parameter
+	\begin{equation}
+		\beta_t = \beta_{t-1} - \eta \nabla \beta_{t}
+	\end{equation}
+	where $\eta$ is the learning rate and $\nabla \beta_{t}$ the gradient
+	\begin{itemize}
+		\item Standard methods to compute the optimal step are computationally prohibitive e.g. Newton-Raphson % Hessian
+		\item We can afford large steps at the start but they should become smaller as we approach the minimum
+		\item Better algorithms implement an adaptive or an individual learning rate or a combination of both\footnote{ Learning rate schedulers can also be used to adjust the learning rate depending on the epoch and obtain better convergence.}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secname}
+	\begin{figure}
+		\begin{minipage}{.49\textwidth}
+			\caption{Local minima}
+			\includegraphics[width=\textwidth]{figures/fig_local_minima.pdf}
+		\end{minipage}
+		\hfill
+		\begin{minipage}{.49\textwidth}
+			\caption{Saddle point}
+			\includegraphics[width=\textwidth]{figures/fig_saddle_point.pdf}
+		\end{minipage}
+	\end{figure}
+	\details{Local minima are smaller curvatures on the function graph where the optimisation can converge. Saddle point appears in two or more dimensions, it is a minimum with respect to one parameter and a maximum with respect to another. In both cases, the gradients are near zero.}
+\end{frame}
+
+\subsection{Momentum}
+
+\begin{frame}{\secsubname}
+	The momentum algorithm \parencite{Qian1999} accumulates the gradient of the past iterations to compute the step
+	\begin{equation*}
+		\beta_t = \beta_{t-1} - \underline{\gamma \left(\eta \nabla \beta_{t-1}\right)} \times \eta \nabla \beta_{t}
+	\end{equation*}
+	where the tuning parameter $\gamma$ controls the dependence to the previous accumulated gradients (e.g. $\gamma=0.9$)
+	\begin{itemize}
+		\item This causes gradient descent to accelerate when multiple iterations points to the same direction
+		\item The exponential moving average cause the weights of the previous gradients to decay with each iteration
+	\end{itemize}
+	% Momentum builds up speed in directions with consistent gradient.
+	% The algorithm works best with cinsistent batches should be large
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{align*}
+		\Delta \beta_0 &= 0 \\
+		\Delta \beta_1 &= \eta \nabla \beta_1 \\
+		\Delta \beta_2 &= \gamma \Delta \beta_1 + \eta \nabla \beta_2 = \gamma \eta \nabla \beta_1 + \eta \nabla \beta_2 \\
+		\Delta \beta_3 
+		&= \gamma \underline{\Delta \beta_2} + \eta \nabla \beta_3
+		= \gamma \left(\underline{\gamma \eta \nabla \beta_1 + \eta \nabla \beta_2}\right) + \eta \nabla \beta_3 \\
+		&= \gamma^2 \eta \nabla \beta_1 + \gamma \eta \nabla \beta_2 + \eta \nabla \beta_3 \\
+		\Delta \beta_4 
+		&= \gamma \underline{\Delta \beta_3} + \eta \nabla \beta_4
+		= \gamma \left(\underline{\gamma^2 \eta \nabla \beta_1 + \gamma \eta \nabla \beta_2 + \eta \nabla \beta_3}\right) + \eta \nabla \beta_4 \\
+		&= \gamma^3 \eta \nabla \beta_1 + \gamma^2 \eta \nabla \beta_2 + \gamma \eta \nabla \beta_3 + \eta \nabla \beta_4 \\
+		&\vdots \\
+		\Delta \beta_t &= \gamma^{t-1} \nabla \beta_1 + \gamma^{t-2} \eta \nabla \beta_2 + \gamma^{t-3} \eta \nabla \beta_3 + \cdots + \eta \nabla \beta_t \\
+	\end{align*}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Momentum accelerates when gradients for multiple iterations point to the same direction and slows down otherwise
+	\begin{itemize}
+		\item Fast in areas with a gentle slope (e.g. plateau) and can escape saddle-points and some local minima
+		\item Faster is not always better as Momentum may repeatedly overshoot the minimum before converging
+		\item Momentum does not correct for the direction as the same learning is applied to every parameters
+	\end{itemize}
+\end{frame}
+
+\begin{frame}[standout]
+	\alert{Compare Gradient descent to Momentum using the \href{https://github.com/lilipads/gradient_descent_viz}{\underline{Gradient Descent Visualiser}}} 
+	\normalsize \normalfont
+	\begin{itemize}
+		\item What happens when you set Momentum's decay rate to $0.98$ in the local minimum setting?
+		\item What happens when you set Momentum's decay rate to $1$ in the global minimum setting?
+	\end{itemize}
+\end{frame}
+
+\subsection{RMSProp \& Adam}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\begin{minipage}{.59\textwidth}
+			\includegraphics[width=\textwidth]{figures/fig_corridor.pdf}
+		\end{minipage}
+		\hfill
+		\begin{minipage}{.39\textwidth}
+			\caption{Corridors}
+			\details{Corridors are a common feature of loss landscapes. To navigate them efficiently, different learning rates should be applied to each parameter (i.e. small for $\beta_0$, large for $\beta_1$). We can use the fact that gradients are larger in the $\beta_0$ direction and smaller in the $\beta_1$ direction.}
+		\end{minipage}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Root Mean Square Propogation or RMSProp (Hinton 2012) adjusts for the direction using individual learning rates
+	\begin{align*}
+		\beta_t &= \beta_{t-1} - \frac{\eta}{\sqrt{v_t + \varepsilon}} \nabla \beta_{t-1} \\
+		v_t &= \gamma v_{t-1} + (1-\gamma) (\nabla \beta_{t-1})^2
+	\end{align*}
+	where $v_t$ is a moving average and $\varepsilon$ is for numerical stability
+	\begin{itemize}
+		\item Sets an individual learning rate for each parameter, more robust and oscillates less than Momentum
+		\item Adaptive Momentum Estimation \parencite{Kingma2015} combines Momentum and RMSProp\footnote{The popular AdamW optimisation algorithm \parencite{loshchilov2018} also includes a form of $L_2$ regularisation.}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}[standout]
+	\alert{Compare Gradient descent and Momentum to RMSProp and Adam using the \href{https://github.com/lilipads/gradient_descent_viz}{\underline{Gradient Descent Visualiser}}}
+	\normalsize \normalfont
+	\begin{itemize}
+		\item Compare the optimisation paths of Momentum and RMSProp, what do you notice?
+		\item Compare the optimisation paths of RMSProp and Adam, how does the latter improves on the optimisation?
+	\end{itemize}
+\end{frame}
+
+\subsection{Batches}
+
+\begin{frame}{\secsubname}
+	Mini-batch gradient descent performs gradient descent steps with a random partition of training observations
+	\begin{itemize}
+		\item The training data is shuffled and partitioned into a number of mini-batches without replacement
+		\item Each optimisation iteration updates the parameters using a mini-batch rather than the entire training sample 
+		\item When all mini-batches have been used to update the parameters, an epoch has been processed
+	\end{itemize}
+\end{frame}
+ 
+\begin{frame}{\secsubname}
+	At each step, the computed gradients gradients are different from those of the loss with the entire training sample
+	\begin{itemize}
+		\item Noisy optimisation path, steps are not exactly taken in the direction steepest descent wrt. the entire sample
+		\item This may prevent optimisation getting stuck in local minima or saddle points for multiple iterations
+		\item Optimisation requires more steps, but the updates are computationally cheaper i.e. fewer observations
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	The mini-batch size is a trade-off between safety wrt. local minima, optimisation stability and speed of convergence
+	\begin{itemize}	
+		\item For simple loss functions or datasets without much redundancy, gradient descent performs well
+		\item For large and redundant datasets, mini-batches are computationally cheaper and provide good estimates
+		\item Standard values for the mini-batch size are 32 or 64 (i.e. powers of 2 for GPU) along with small learning rates
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\includegraphics[height=.9\textheight]{figures/fig_batches.pdf}
+		% What would the optimisation path look like with mini-batch gradient descent
+	\end{figure}
+\end{frame}
+
+\section{Better activation}
+
+\begin{frame}{\secname}
+	With identity activation the network would simplify to a linear model so non-linear activations are essential
+	\begin{equation*}
+		x^{(l)}_{iu} = \sigma^{(l)}\left(z_{iu}\right) = \sigma^{(l)}\left(x_i^{(l-1)} \cdot \beta^{(l)}_u \right)
+	\end{equation*}
+	where $\sigma$ is the activation function
+	\begin{itemize}
+		\item The activation of the output layer depends on the target distribution (e.g. linear, logistic, Poisson)
+		\item Since hidden units have no target output, the activation is chosen for optimisation purposes
+	\end{itemize}
+\end{frame}
+
+\subsection{Sigmoid}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\includegraphics[height=.7\textheight]{figures/fig_sigmoid.pdf}
+	\end{figure}
+	\details{The sigmoid transformation was used in early networks. However, it has a small range, isn't zero-centred and is relatively expensive to compute because of the exponential.}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Recall that the backpropagation equations uses the derivative of the activation function for each unit
+	\begin{equation*}
+		\frac{\partial x_{iu}}{\partial z_{iu}} = \sigma'\left({z_{iu}}\right) = \sigma(z_{iu}) \left(1 - \sigma(z_{iu})\right)
+	\end{equation*}
+	where layer indexes are dropped for simplicity
+	\begin{itemize}
+		\item When $z_{iu}$ is large, either positive or negative, the sigmoid function's output is close to $0$ or $1$ (i.e. saturation)
+		\item Given that $z_{iu} = x_i \cdot \beta_u$, this could happen when the elements of $x_i$ or $\beta_u$ are large (more on this later)
+		\item The partial derivative approaches $0$, so the parameters are no longer updated with new observations
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{minipage}{.29\textwidth}
+		\includegraphics[width=\textwidth]{figures/fig_zigzag.pdf}
+	\end{minipage}
+	\hfill
+	\begin{minipage}{.69\textwidth}
+		Another issue is that the sigmoid transformation is not zero-centred
+		\begin{equation}
+			\frac{\partial \mathcal{L}(\beta)}{\partial \beta^{(2)}_j} = \delta^{(2)} \frac{\partial z^{(2)}}{\partial \beta^{(2)}_j} = \delta^{(2)} x^{(1)}_j
+		\end{equation}
+		where $x^{(1)}_j$ is always positive
+		\begin{itemize}
+			\item This causes the update for all the parameters of a layer to be either positive or negative
+			\item This restricts the optimisation and takes longer to converge, as the path has a zigzag shape
+		\end{itemize}
+	\end{minipage}
+	% Add update quadrant
+\end{frame}
+
+\subsection{Exponential tangent}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\includegraphics[height=.7\textheight]{figures/fig_tanh.pdf}
+	\end{figure}
+	\details{Another common activation is the exponential tangent function, which is zero-centred. The restricted range, while larger than sigmoid, can still cause units to saturate, and the function remains computationally expensive.}
+\end{frame}
+
+\subsection{ReLU}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\includegraphics[height=.7\textheight]{figures/fig_relu.pdf}
+	\end{figure}
+	\details{The ReLU function does not saturate in the positive region, is computationally efficient, and allows for faster convergence \parencite{Krizhevsky2012}. This function allows training larger networks and is widely used as the default activation in modern networks.}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	A large negative constant can cause $z_{iu}$ to be negative and $\sigma(z_{iu}) = 0$, so that the parameters are not updated
+	\begin{itemize}
+		\item The constant is not updated (i.e. does not change with the mini-batch), so the unit can effectively ``die'' 
+		\item This may happen with large learning rates, and the constant should be initialised to a positive value
+		\item Extensions to ReLU avoid this problem at the cost of additional parameters e.g. PReLU \parencite{He2015}
+	\end{itemize}
+\end{frame}
+
+\section{Better initialisation}
+
+\begin{frame}{\secname}
+	Randomly initialised parameter values have a significant impact on the optimisation procedure
+	\begin{itemize}
+		\item They define the starting position on the loss function graph and the minima optimisation can reach
+		\item They interact with the activation functions and can cause the gradients to vanish i.e. $\sigma^{(l)}(x^{(l-1)} \cdot \beta^{(l)}_u)$
+		\item We derive a principled way to initialise the parameters for effective optimisation \parencite{Glorot2010}
+	\end{itemize}
+\end{frame}
+
+\subsection{Intuition}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\begin{minipage}{.64\textwidth}
+			\includegraphics[width=\textwidth]{figures/fig_initialisation_tied.pdf}
+		\end{minipage}
+		\hfill
+		\begin{minipage}{.34\textwidth}
+			\caption{Initialisation with constant values}
+			\details{The contribution of each coloured parameter to the loss (i.e. partial derivative) will be the same so they will receive the same update (i.e. symmetry problem). Their value changes during optimisation but will remain tied, so the model becomes much less flexible as hidden units compute the same features.}
+		\end{minipage}
+	\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{\secname}
+	\begin{lstlisting}[caption=Random initialisations, basicstyle=\scriptsize, numberstyle=\scriptsize]
+		# Modules
+		import numpy as np
+
+		# Initialises data
+		X = np.random.normal(size=(4, 100, 32))
+
+		# Initialises parameters (small, large, normal, choose one)
+		B = np.random.uniform(low=-0.05, high=0.05, size=(4, 32, 32))
+		B = np.random.uniform(low=-0.5, high=0.5, size=(4, 32, 32))
+		B = np.random.normal(size=(4, 32, 32)) / (np.sqrt(32))
+
+		# Forward propagation (replaces Xl, l=1,...,L)
+		for l in range(1, 4):
+		    X[l] = np.tanh(X[l-1] @ B[l])
+	\end{lstlisting}
+	% Note that $\beta^{(0)}$ is unused (i.e. indexing), $X^{(l)},\ l=1,\dots,L$ are replaced (i.e. allocation).
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\caption{Initialisation with small random values}
+		\includegraphics[width=\textwidth]{figures/fig_initialisation_small.pdf}
+		\details{Distribution of unit's output $x^{(l)}_u$ for layers $f^{(l)},\ l=1,\dots,3$. Unit's use the tanh activation and the initial parameters are drawn from the uniform distribution $[-0.05,+0.05]$.}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	The units' output $x^{(l)}_u$ converge toward the centre of the activation (i.e. $0$ for tanh) with every hidden layer
+	\begin{itemize}
+		\item There is little variance in the units' output and their contribution to the loss are close to $0$
+		\item The gradients are also close to $0$, as they are the product of many partial derivatives that are close to $0$
+		\item The parameters of the early layers are not updated  effectively (i.e. vanishing gradient problem)
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\caption{Initialisation with larger random values}
+		\includegraphics[width=\textwidth]{figures/fig_initialisation_large.pdf}
+		\details{Distribution of unit's output $x^{(l)}_u$ for layers $f^{(l)},\ l=1,\dots,3$. Unit's use the tanh activation and the initial parameters are drawn from the uniform distribution $[-0.5,+0.5]$.}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Individual parameters are not large, but given enough hidden input units the dot product $z^{(l)}_u = x^{(l-1)} \cdot \beta^{(l)}_u$ is large
+	\begin{itemize}
+		\item Large positive of negative $z^{(l)}_u$ passed to the exponential tanh function are close to $-1$ or $1$ (i.e. saturation)
+		\item The partial derivative of the activation function in these areas is close to $0$ (i.e. vanishing gradients)
+		\item We need a more principled way of initialising the parameters by controlling variance in the units' output \parencite{Glorot2010}
+	\end{itemize}
+\end{frame}
+
+\subsection{Glorot}
+
+% n is the number of units, not the number of observations!!
+
+\begin{frame}{\secsubname}
+	% https://wandb.ai/sauravmaheshkar/initialization/reports/A-Gentle-Introduction-To-Weight-Initialization-for-Neural-Networks--Vmlldzo2ODExMTg
+	\small
+	Consider the variance for the $z$ of a single unit, layer and unit indexes are dropped for clarity
+	\begin{align} 
+		V(z) &= V\left(\sum_{i=1}^n \beta x_i\right) = \sum_{i=1}^n V\left(\beta x_i\right) \nonumber \\
+		V(z) &= \sum_{i=1}^n \left[\underline{E(\beta)}^2 V(x_i) + \underline{E(x_i)}^2 V(\beta) + V(x_i) V(\beta) \right] \nonumber \\
+		V(z) &= \underline{\sum_{i=1}^n} V(x_i) V(\beta)
+		= \left(\underline{n} V(\beta) \right) V(x) 
+	\end{align}
+	The variance\footnote{The normalised inputs and initialised parameters have mean 0 and the same variance (i.e. $V(x_i) = V(x),\ \forall i$)} of the output is the variance of the input scaled by $nV(\beta)$, we need an initialisation such that $nV(\beta) = 1$
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Adding layer indexes and unit, and ignoring activation
+	\begin{equation*}
+		V(z^{(1)}) = \left[n V\left(\beta^{(1)}\right)\right] V(x)
+	\end{equation*}
+	When $n V(\beta) \gg 1$, then $V(z)$ is large and when $n V(\beta) \rightarrow 0$ this variance is low. For the subsequent unit
+	\begin{align*}
+		V(z^{(2)}) &= \left[n V\left(\beta^{(2)}\right)\right] V(z^{(1)}) \\
+		V(z^{(2)}) &= \underline{\left[n V\left(\beta^{(2)}\right)\right] \left[n V\left(\beta^{(1)}\right)\right]} V(x)
+		\\
+		V(z^{(2)}) &= \underline{\left[n V(\beta)\right]^2} V(x)
+	\end{align*}
+	Assuming that all the $\beta^{(l)}$ have the same variance i.e. $V\left(\beta^{(l)}\right) = V(\beta)$
+\end{frame}
+
+\begin{frame}{\secsubname}
+	We need that $nV(\beta) = 1$, under this condition, the units will not saturate not vanish. A solution is
+	\begin{equation}
+		nV(\beta) = nV\left(\frac{z}{\sqrt{n}}\right) = n\frac{1}{n}V(z) = 1
+	\end{equation}
+	Using the fact that $V(az) = a^2V(z)$
+	\begin{itemize}
+		\item I have the draw the parameters from a given distribution so that this condition holds
+		\item Under this condition, the variance will neither blow-up nor shrink 
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\caption{Normal initialisation}
+		\includegraphics[width=\textwidth]{figures/fig_initialisation_normal.pdf}
+	\end{figure}
+	\details{For the ReLU function, this initialisation does not work \parencite{He2015}. See \parencite{Narkhede2022} for a review.}
+\end{frame}
+
+\subsection{Batch-normalisation}
+
+% Note: the standardisation parameters $\bar{z}_j$ and $\sigma(z_j)$ are usually estimated on the training sample using an exponentially weighted average (at test time, observations may be processed once at the time) over the mini-batches and applied to the test sample
+
+\begin{frame}{\secsubname}
+	The input variables $x_u$ are usually standardised to have zero mean and unit standard deviation
+	\begin{align*}
+		x^s_{iu} &\Leftarrow \frac{x_{iu} - \bar{x}_{u}}{\sqrt{\sigma^2_{u} + \varepsilon}} \\
+		\bar{x}_{u} &= \frac{1}{n}\sum_{i=1}^n x_{iu} \\
+		\sigma^2_{u} &= \frac{1}{n}\sum_{i=1}^n \left(x_{iu} - \bar{x}_{u}\right)^2
+	\end{align*}
+	where $\varepsilon$ is a small number to avoid zero division, the layer index is dropped for simplicity
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Batch normalisation \parencite{Ioffe2015} is a layer that standardises the input to the next layer
+	\begin{itemize}
+		\item This transformation is applied to each batch, as they change during optimisation (i.e. different distributions)
+		\item At each optimisation iteration, $x_{iu}$ is standardised using the current batch's mean and standard deviation
+		\item Batch normalisation controls the first two moments of a unit's $x_{iu}$ input distribution for a given batch
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	In some applications, having different input distributions can be useful for prediction (e.g. separating classes)
+	\begin{equation*}
+		x^{bn}_{iu} \Leftarrow \theta_{0u} + \theta_{1u} \cdot x^s_{iu}
+	\end{equation*}
+	where $\theta_{0u}$ and $\theta_{1u}$ are the shift and scaling factors for the unit's output distribution, respectively
+	\begin{itemize}
+		\item This operation is differentiable so the model can estimate the batch normalisation parameters (i.e. 4 for each unit)
+		\item During predictions, we aggregate the mean and standard deviation using an exponentially weighted moving average over the training mini-batches\footnote{Layers like normalisation and dropout behave differently at train and test time. Make sure the model is in the correct mode.}
+		% Time series estimation procedure of a statistic. We compute the weighted average of the previous average and the new statistic, using stronger weights (parameter) for the new statistic, so that more recent data is given more weight.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Batch-normalisation smooths the loss landscape \parencite{Santurkar2018}, enabling faster and more robust convergence\footnote{Other types of normalisation are used e.g. layer normalisation in recurrent models or transformers.}
+	\begin{itemize}
+		\item Units are less sensitive to the distribution of their input from previous layers (i.e. internal covariate shift) % This is debtaed
+		\item Better used before activation (i.e. $z_{iu}$) when the transformation produces a non-Gaussian distribution
+		% E.g. Ensure that the non-linearity is applied to centered data. The mean after ReLU may be close to 0. With S-shaped activation, after activation also works
+		\item In this case, the constant term becomes redundant as batch-normalisation controls the shift factor
+	\end{itemize}
+	% Higher learning rate
+\end{frame}
+
+\section{Better regularisation}
+
+\subsection{Early-stopping}
+
+\begin{frame}{\secsubname}
+	Early stopping uses another random sample called validation to monitor the  models' generalisation during training
+	\begin{itemize}
+		\item The validation error is computed after each training epoch, and monitored with a patience parameter
+		\item When the model starts overfitting, the training error decreases while the validation error increases
+		\item The test sample is separate form the validation sample because the latter is used to select the parameters
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\includegraphics[width=\textwidth]{figures/fig_validation.pdf}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Early stopping reduces the number of optimisation iterations and constrains the maximum size of the parameter updates
+	\begin{itemize}
+		\item The available data is commonly partitioned into 70\% for training, 15\% for validation and 15\% for testing
+		\item A disadvantage of early stopping is that less of the available data is being used to estimate the parameters
+		\item This regularisation technique can be used with other regularisation procedures (e.g. $L_2$, or dropout)
+	\end{itemize}
+\end{frame}
+
+\subsection{Dropout}
+
+\begin{frame}{\secsubname}
+	Bootstrap aggregation can be used to reduce the variance of a statistical model (errors are not perfectly correlated)
+	\begin{itemize}
+		\item Estimating different networks (i.e. decorrelation) on different subsamples is computationally demanding
+		\item Dropout \parencite{Srivastava2014} is a technique to train an ensemble of networks at no additional computational cost
+		\item This is done by randomly dropping a sample of input or hidden units at each optimisation iteration
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\begin{minipage}{.69\textwidth}
+			\includegraphics[width=\textwidth, page=1]{figures/fig_dropout.pdf}
+		\end{minipage}
+		\hfill
+		\begin{minipage}{.29\textwidth}
+			\caption{Dropout regularisation 1}
+			\details{Each unit is associated with a probability of being kept (e.g. $p=50\%$). The parameters are shared and we sample a different sub-network across optimisation iterations. }
+		\end{minipage}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	\begin{figure}
+		\begin{minipage}{.69\textwidth}
+			\includegraphics[width=\textwidth, page=2]{figures/fig_dropout.pdf}
+		\end{minipage}
+		\hfill
+		\begin{minipage}{.29\textwidth}
+			\caption{Dropout regularisation 2}
+			\details{Only the kept units are updated during back-propagation. Some sub-networks may never be sampled, which is fine since the sub-network parameters are shared.}
+		\end{minipage}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	We study the inverted dropout implementation that specifies a probability of the unit being kept (i.e. simpler at test time)
+	\begin{equation}
+		X_D^{(l)} = \frac{X^{(l)} \odot \left(D^{(l)} < p\right)}{p}
+	\end{equation}
+	where $D^{(l)}$ is a random array of values between 0 and 1 from the uniform distribution and $p$ is the keep probability
+	\begin{itemize}
+		\item $D^{(l)}$ has the same dimensions as $X^{(l)}$, for every observation in the batch, different units are dropped
+		\item The expected value of $X_D^{(l)}$ decreases by $(1-p)$ the dropout rate so we divide by the keep probability
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Dropout reduces the units' co-adaptation and prevent them from becoming inactive by depending on others
+	\begin{itemize}
+		\item Since subsequent units cannot rely on a particular input, the parameters will be more evenly distributed
+		\item This effectively shrinks larger parameter values, which has a similar effect to other regularisation techniques
+		\item Dropout encourages some redundancy and the detection of diverse patterns, making the model more robust
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{\secsubname}
+	Dropout should be used when the model overfits, in layers with many parameters e.g. computer vision
+	\begin{itemize}
+		\item Dropout is deactivated for predictions, the rescaling ensures that the computations remain valid
+		\item Dropout can also be used on the input layer to add noise to the training data, when the input is redundant
+		\item The optimisation path less smooth as the shape of the loss function changes with every iteration
+	\end{itemize}
+\end{frame}
+
+\section{Summary}
+
+\begin{frame}{\secname}
+	We covered numerous development in the deep learning litterature that allowed to optimise large networks
+	\begin{itemize}
+		\item Better optimisation procedures (e.g. mini-batches, batch-norm., Adam) and activation functions (e.g. ReLU)
+		\item Better initialisation strategies (e.g. Golorot, He), regularisation techniques (e.g. early stopping, dropout)
+		\item These elements interact in complex ways, we need an intuitive understanding of their mechanisms and impact
+	\end{itemize}
+\end{frame}
+
+\begin{frame}[standout]
+	\alert{\LARGE Thank you for your attention!} 
+\end{frame}
+
+\section*{References}
+
+\begin{frame}[allowframebreaks]{\secname}
+	\nocite{Plevris2022}
+	\printbibliography[heading=none]	
+\end{frame}
+
+\end{document}
